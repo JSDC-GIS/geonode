@@ -871,6 +871,7 @@ def final_step(upload_session, user, charset="UTF-8", layer_id=None):
                             _log(
                                 f"There was an error updating the mosaic temporal extent: {str(e)}")
                 else:
+                    
                     # The dataset is a standard one, no mosaic options enabled...
                     saved_dataset_filter = Layer.objects.filter(
                         store=_vals.get('store'),
@@ -878,6 +879,8 @@ def final_step(upload_session, user, charset="UTF-8", layer_id=None):
                         workspace=_vals.get('workspace'),
                         name=_vals.get('name'))
                     if not saved_dataset_filter.exists():
+                        _log(f" -- CREATING LAYER {saved_layer}...", level="info")
+                        
                         saved_layer = Layer.objects.create(
                             uuid=layer_uuid or str(uuid.uuid4()),
                             store=_vals.get('store'),
@@ -902,6 +905,7 @@ def final_step(upload_session, user, charset="UTF-8", layer_id=None):
                         raise GeoNodeException(f"There's an incosistent number of Datasets on the DB for {task.layer.name}")
 
                 assert saved_layer
+                _log(f" -- SET PROCESSING STATE {saved_layer}...", level="info")
 
                 # Hide the dataset until the upload process finishes...
                 saved_layer.set_processing_state(Upload.STATE_RUNNING)
@@ -914,6 +918,8 @@ def final_step(upload_session, user, charset="UTF-8", layer_id=None):
                 if not created and not overwrite:
                     return saved_layer
 
+                _log(f" -- GET PERMISSIONS FROM UPLOAD SESSION {saved_layer}...", level="info")
+
                 # Finalize the upload...
                 # Set default permissions on the newly created layer and send notifications
                 permissions = upload_session.permissions
@@ -921,17 +927,22 @@ def final_step(upload_session, user, charset="UTF-8", layer_id=None):
                 # Finalize Upload
                 try:
                     with transaction.atomic():
+                        _log(f" -- CREATING UPLOAD SESSION {saved_layer}...", level="info")
+                        
                         # Create a new upload session
                         geonode_upload_session, created = UploadSession.objects.get_or_create(
                             resource=saved_layer, user=user
                         )
                         geonode_upload_session.processed = False
                         geonode_upload_session.save()
+                        _log(f" -- UPDATE UPLOAD OBJECT FROM SESSION {saved_layer}...", level="info")
+
                         upload_session = Upload.objects.update_from_session(upload_session, layer=saved_layer)
 
                         # Add them to the upload session (new file fields are created).
                         assigned_name = None
 
+                        _log(f" -- UPDATE LAYER WITH XML INFO {saved_layer}...", level="info")
                         # Update Layer with information coming from XML File if available
                         saved_layer = _update_layer_with_xml_info(saved_layer, xml_file, regions, keywords, vals)
 
@@ -961,27 +972,32 @@ def final_step(upload_session, user, charset="UTF-8", layer_id=None):
                             aux_files = uploaded_files.auxillary_files
                             sld_files = uploaded_files.sld_files
                             xml_files = uploaded_files.xml_files
-
+                            _log(f" -- STORING BASE FILES {saved_layer}...", level="info")
                             assigned_name = _store_file(
                                 saved_layer,
                                 geonode_upload_session,
                                 base_file,
                                 assigned_name,
                                 base=True)
-
+                
                             for _f in aux_files:
+                                _log(f" -- STORING AUX FILES {saved_layer}...", level="info")                            
                                 _store_file(saved_layer,
                                             geonode_upload_session,
                                             _f,
                                             assigned_name)
 
                             for _f in sld_files:
+                                _log(f" -- STORING SLD FILES {saved_layer}...", level="info")
+                                
                                 _store_file(saved_layer,
                                             geonode_upload_session,
                                             _f,
                                             assigned_name)
 
                             for _f in xml_files:
+                                _log(f" -- STORING XML FILES {saved_layer}...", level="info")
+                                
                                 _store_file(saved_layer,
                                             geonode_upload_session,
                                             _f,
@@ -990,12 +1006,12 @@ def final_step(upload_session, user, charset="UTF-8", layer_id=None):
                         # @todo if layer was not created, need to ensure upload target is
                         # same as existing target
                         # Create the points of contact records for the layer
-                        _log(f'Creating points of contact records for {name}')
+                        _log(f' -- Creating points of contact records for {name}')
                         saved_layer.poc = user
                         saved_layer.metadata_author = user
                         saved_layer.metadata_uploaded = metadata_uploaded
 
-                        _log('Creating style for [%s]', name)
+                        _log(' -- Creating style for [%s]', name)
                         # look for SLD
                         sld_file = upload_session.base_file[0].sld_files
                         sld_uploaded = False
@@ -1003,14 +1019,14 @@ def final_step(upload_session, user, charset="UTF-8", layer_id=None):
                             # If it's contained within a zip, need to extract it
                             if upload_session.base_file.archive:
                                 archive = upload_session.base_file.archive
-                                _log(f'using uploaded sld file from {archive}')
+                                _log(f' -- using uploaded sld file from {archive}')
                                 zf = zipfile.ZipFile(archive, 'r', allowZip64=True)
                                 zf.extract(sld_file[0], os.path.dirname(archive), path=upload_session.tempdir)
                                 # Assign the absolute path to this file
                                 sld_file[0] = f"{os.path.dirname(archive)}/{sld_file[0]}"
                             else:
                                 _sld_file = f"{os.path.dirname(upload_session.tempdir)}/{os.path.basename(sld_file[0])}"
-                                _log(f"copying [{sld_file[0]}] to [{_sld_file}]")
+                                _log(f" -- copying [{sld_file[0]}] to [{_sld_file}]")
                                 try:
                                     shutil.copyfile(sld_file[0], _sld_file)
                                     sld_file = _sld_file
@@ -1029,24 +1045,33 @@ def final_step(upload_session, user, charset="UTF-8", layer_id=None):
                                 base_file = upload_session.base_file
                                 sld_file = base_file[0].sld_files[0]
                             sld_uploaded = False
-                        _log(f'[sld_uploaded: {sld_uploaded}] sld_file: {sld_file}')
+                        _log(f' -- [sld_uploaded: {sld_uploaded}] sld_file: {sld_file}')
 
                         if upload_session.time_info:
+                            _log(f" -- SETTING TIME INFO {saved_layer}...", level="info")
+                            
                             set_time_info(saved_layer, **upload_session.time_info)
 
                         # Set default permissions on the newly created layer and send notifications
+                        _log(f" -- FINALIZE GEOSERVER UPLOAD {saved_layer}...", level="info")
+                        
                         geoserver_finalize_upload.apply(
                             (import_session.id, saved_layer.id, permissions, created,
                              xml_file, sld_file, sld_uploaded, upload_session.tempdir))
 
+                        _log(f" -- CALLING STORERS {saved_layer}...", level="info")
                         saved_layer = utils.metadata_storers(saved_layer, custom)
+
+                        _log(f" -- UPLOAD COMPLETED {saved_layer}...", level="info")
 
                         Upload.objects.filter(layer=saved_layer).update(complete=True)
                         [u.set_processing_state(Upload.STATE_PROCESSED) for u in Upload.objects.filter(layer=saved_layer)]
                 except Exception as e:
+                    _log(f" -- ERROR FOUND FOR {saved_layer}...")
                     logger.exception(e)
                     Upload.objects.filter(layer=saved_layer).update(complete=False)
                     [u.set_processing_state(Upload.STATE_INVALID) for u in Upload.objects.filter(layer=saved_layer)]
+                    raise e
                 finally:
                     _log(f" -- Upload completed for {saved_layer}...")
 
