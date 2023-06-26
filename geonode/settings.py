@@ -553,7 +553,7 @@ REST_API_DEFAULT_PAGE_QUERY_PARAM = os.getenv("REST_API_DEFAULT_PAGE_QUERY_PARAM
 
 DYNAMIC_REST = {
     # DEBUG: enable/disable internal debugging
-    "DEBUG": False,
+    "DEBUG": True,
     # ENABLE_BROWSABLE_API: enable/disable the browsable API.
     # It can be useful to disable it in production.
     "ENABLE_BROWSABLE_API": True,
