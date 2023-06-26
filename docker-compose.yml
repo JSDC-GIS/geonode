@@ -99,6 +99,10 @@ services:
       retries: 10
     env_file:
       - .env
+    environment:
+      - SITEURL=https://dev-geonode.jsdc.com.tw/
+      - GEONODE_LB_HOST_IP=https://dev-geonode.jsdc.com.tw/
+      - GEONODE_LB_PORT=80
     volumes:
       - statics:/mnt/volumes/statics
       - geoserver-data-dir:/geoserver_data/data
