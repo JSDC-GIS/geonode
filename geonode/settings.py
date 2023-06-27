@@ -2326,5 +2326,5 @@ FACET_PROVIDERS = (
     "geonode.facets.providers.region.RegionFacetProvider",
 )
 
-CSRF_TRUSTED_ORIGINS = ['https:dev-geonode.jsdc.com.tw']
+CSRF_TRUSTED_ORIGINS = ['https://dev-geonode.jsdc.com.tw']
 
